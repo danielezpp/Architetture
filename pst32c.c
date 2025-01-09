@@ -54,6 +54,7 @@
 #define random() (((type) rand())/RAND_MAX)
 #define M_PI 3.14159265358979323846
 
+
 type hydrophobicity[] = {1.8, -1, 2.5, -3.5, -3.5, 2.8, -0.4, -3.2, 4.5, -1, -3.9, 3.8, 1.9, -3.5, -1, -1.6, -3.5, -4.5, -0.8, -0.7, -1, 4.2, -0.9, -1, -1.3, -1};		// hydrophobicity
 type volume[] = {88.6, -1, 108.5, 111.1, 138.4, 189.9, 60.1, 153.2, 166.7, -1, 168.6, 166.7, 162.9, 114.1, -1, 112.7, 143.8, 173.4, 89.0, 116.1, -1, 140.0, 227.8, -1, 193.6, -1};		// volume
 type charge[] = {0, -1, 0, -1, -1, 0, 0, 0.5, 0, -1, 1, 0, 0, 0, -1, 0, 0, 1, 0, 0, -1, 0, 0, -1, 0, -1};		// charge
@@ -345,17 +346,29 @@ type* rotation (float *axis, type theta){
     int n = 3;
     type* rotated_m;
     rotated_m = alloc_matrix(n,n);
+	if(!rotated_m){
+		printf("Errore nell'allocazione di rotated_M");
+	}
     int i;
 
-	//Potrebbe essere necessario effettuare normalizzazione 
-    for (i=0; i<n; i++){
-        axis [i] = axis[i] / prod_scal(axis,n);
+	 // Copia locale per preservare `axis`
+    type normalized_axis[3];
+	type magnitude = sqrt(axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]);
+    if (magnitude == 0.0) {
+        printf("Errore: il vettore asse ha magnitudine zero.\n");
+        free(rotated_m);
+        return NULL;
     }
 
-    type a = taylor_cos(theta/2.0);
-    type b = -axis[0] * taylor_sin(theta / 2.0);
-    type c = -axis[1] * taylor_sin(theta / 2.0);
-    type d = -axis[2] * taylor_sin(theta / 2.0);
+    for (int i = 0; i < n; i++) {
+        normalized_axis[i] = axis[i] / magnitude;
+    }
+
+    // Calcola i coefficienti quaternion
+    type a = taylor_cos(theta / 2.0);
+    type b = -normalized_axis[0] * taylor_sin(theta / 2.0);
+    type c = -normalized_axis[1] * taylor_sin(theta / 2.0);
+    type d = -normalized_axis[2] * taylor_sin(theta / 2.0);
 
     rotated_m[0] = a * a + b * b - c * c - d * d;
     rotated_m[1] = 2 * (b * c + a * d);
@@ -386,12 +399,24 @@ void normalize(type v[3]){
 }
 
 //PRODOTTO TRA VETTORE E MATRICE (CASO SPECIFICO V = {0,X,0})
-type* prod_mat(type dist, type* rot){
-    type* newv = (type*) malloc(3*sizeof(type));
 
-    newv[0] = dist*rot[3];
-    newv[1] = dist*rot[4];
-    newv[2] = dist*rot[5];
+type* prod_mat(type dist, type* rot) {
+    if (rot == NULL) {
+        fprintf(stderr, "Errore: matrice di rotazione NULL in prod_mat\n");
+        exit(EXIT_FAILURE);
+    }
+
+    type* newv = (type*) malloc(3 * sizeof(type));
+    if (newv == NULL) {
+        fprintf(stderr, "Errore: allocazione memoria fallita in prod_mat\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Calcolo dei nuovi valori
+    newv[0] = dist * rot[3];
+    newv[1] = dist * rot[4];
+    newv[2] = dist * rot[5];
+
     return newv;
 }
 
@@ -413,19 +438,19 @@ type* backbone(char *sequence, type *phi, type *psi){
     float th_c_n_ca= 2.124;
     float th_n_ca_c= 1.940;
 
-    coords [0] = 0;
-    coords [1] = 0;
-    coords [2] = 0;
+    coords [0] = 0.0;
+    coords [1] = 0.0;
+    coords [2] = 0.0;
     coords [3] = r_ca_n;
-    coords [4] = 0;
-    coords [5] = 0;
+    coords [4] = 0.0;
+    coords [5] = 0.0;
 
     int i;
 
     for (i=0;i<n;i++){
         int index = i*9;
-        type* newv;
-        type* rot;
+		type* newv;
+		type* rot;
 
         if (i>0)
         {
@@ -434,9 +459,12 @@ type* backbone(char *sequence, type *phi, type *psi){
             v1[0]= coords[index-3] - coords[index-6];
             v1[1]= coords[index-2] - coords[index-5];
             v1[2]= coords[index-1] - coords[index-4];
+			//printf("v1:[%f, %f, %f]", v1[0], v1[1], v1 [2]);
             normalize(v1);
+			//printf("v1 normalizzato:[%f, %f, %f]", v1[0], v1[1], v1 [2]);
 
             rot = rotation(v1, th_c_n_ca);
+			
             newv = prod_mat (r_c_n, rot);
             
             coords[index]= coords[index-3]+newv[0];
@@ -471,9 +499,10 @@ type* backbone(char *sequence, type *phi, type *psi){
         coords[index+6]= coords[index+3]+newv[0];
         coords[index+7]= coords[index+4]+newv[1];
         coords[index+8]= coords[index+5]+newv[2];
-    
-        free(rot);
+
+		free(rot);
 		free(newv);
+    
     }
 
     return coords;
@@ -496,7 +525,7 @@ float rama_energy(float* phi, float* psi, int* n)
 	return energy;
 }
 
-type hydrophobic_energy(char* sequence, MATRIX coords, int* n) {
+type hydrophobic_energy(char* sequence, type* coords, int* n) {
     type energy = 0.0;
 
     // Itera su tutte le coppie di residui
@@ -504,26 +533,25 @@ type hydrophobic_energy(char* sequence, MATRIX coords, int* n) {
         for (int j = i + 1; j < *n; j++) {
             // Calcola la distanza euclidea tra i C-alpha di i e j
             int ca_index_i = i * 3 + 1; // Indice per l'atomo C-alpha di i
+			//printf("ca index: %d", ca_index_i);
             int ca_index_j = j * 3 + 1; // Indice per l'atomo C-alpha di j
 
             type dx = coords[ca_index_i * 3] - coords[ca_index_j * 3];
             type dy = coords[ca_index_i * 3 + 1] - coords[ca_index_j * 3 + 1];
             type dz = coords[ca_index_i * 3 + 2] - coords[ca_index_j * 3 + 2];
-            type dist = sqrt(dx * dx + dy * dy + dz * dz);
+			type dist = sqrt(dx * dx + dy * dy + dz * dz);
 
             // Considera solo distanze inferiori a 10.0
             if (dist < 10.0) {
-                type hydro_i = hydrophobicity[sequence[i]-65];//sbagliato, da cambiare
-				printf("Hydro [i]: %f", hydro_i);
+                type hydro_i = hydrophobicity[sequence[i]-65];
                 type hydro_j = hydrophobicity[sequence[j]-65];
-				printf("Hydro [j]: %f", hydro_j);
                 energy += (hydro_i * hydro_j) / dist;
             }
         }
     }
     return energy;
 }
-
+/*
 float electrostatic_energy(char* s, float* coords, int* n) 
 {
     float energy = 0;
@@ -546,7 +574,33 @@ float electrostatic_energy(char* s, float* coords, int* n)
 
     return energy;
 }
+*/
 
+float electrostatic_energy(char* s, float* coords, int* n){
+	float electro_energy= 0.0;
+
+	int i;int j;
+
+	for(i=0; i< *n; i++){
+		for(j= i+1; j< *n; j++){
+			int ca_index_i = i * 3 + 1;
+            int ca_index_j = j * 3 + 1; 
+
+			type dx = coords[ca_index_i * 3] - coords[ca_index_j * 3];
+            type dy = coords[ca_index_i * 3 + 1] - coords[ca_index_j * 3 + 1];
+            type dz = coords[ca_index_i * 3 + 2] - coords[ca_index_j * 3 + 2];
+			type dist = sqrt(dx * dx + dy * dy + dz * dz);
+
+			if(dist < 10.0 && charge[s[i]-65]!=0.0 && charge[s[j]-65]!=0.0){
+				electro_energy += (charge[s[i]-65]*charge[s[j]-65])/(dist*4.0);
+			}
+
+		}
+	}
+
+	return electro_energy;
+}
+/*
 float packing_energy(char* s, float* coords, int* n) {
     float energy = 0;
 
@@ -562,15 +616,39 @@ float packing_energy(char* s, float* coords, int* n) {
                 }
                 float dist = sqrt(dist_sq);
                 if (dist < 10.0) {
-                    density += volume[j] / pow(dist, 3);
+                    density += volume[s[j]-65] / pow(dist, 3);
                 }
             }
         }
 
-        energy += pow(volume[i] - density, 2);
+        energy += pow(volume[s[i]-65] - density, 2);
     }
 
     return energy;
+}*/
+
+float packing_energy(char* s, float* coords, int *n){
+	float pack_energy = 0.0;
+	int i; int j;
+
+	for (i=0;i<*n;i++){
+		float density = 0.0;
+		for(j=0; j<*n; j++){
+            int ca_index_i = i * 3 + 1;
+            int ca_index_j = j * 3 + 1; 
+
+			type dx = coords[ca_index_i * 3] - coords[ca_index_j * 3];
+            type dy = coords[ca_index_i * 3 + 1] - coords[ca_index_j * 3 + 1];
+            type dz = coords[ca_index_i * 3 + 2] - coords[ca_index_j * 3 + 2];
+			type dist = sqrt(dx * dx + dy * dy + dz * dz);
+
+			if(i!=j && dist<10.0){
+				density += volume[s[j]-65] / pow(dist, 3);
+			}
+		}
+		pack_energy+= pow(volume[s[i]-65]-density, 2);
+	}
+	return pack_energy;
 }
 
 float energy(char* s, float* phi, float* psi, int* n) {
@@ -578,6 +656,7 @@ float energy(char* s, float* phi, float* psi, int* n) {
     float rama_e = rama_energy(phi, psi, n);
 	float hydro_e = hydrophobic_energy(s, coords, n);
     float electro_e = electrostatic_energy(s, coords, n);
+
     float packing_e = packing_energy(s, coords, n);
 
     float wrama = 1.0;
@@ -588,15 +667,67 @@ float energy(char* s, float* phi, float* psi, int* n) {
     return wrama * rama_e + whydro * hydro_e + welec * electro_e + wpack * packing_e;
 }
 
+void simulated_annealing (char* s, type *t0, type *alpha, float *k, int* n, type** res_phi, type** res_psi, type* res_energy)
+{
+    type T = *t0;
+    type* phi = (type*) malloc(*n * sizeof(type));
+    type* psi = (type*) malloc(*n * sizeof(type));
+    gen_rnd_mat(phi,*n);
+    gen_rnd_mat(psi,*n);
+	
+    type e = energy(s,phi,psi, n);
+    int t = 0;
+    int i;
+    type delta_phi;
+    type delta_psi;
+    type delta_energy;
+    type temp_energy;
+    type P;
+    type r;
+	printf("\nSequenza :%s\n", s);
+    while (T>0)
+    {
+        i = (int) random()%(*n+1);
+        delta_phi = random();
+        delta_psi = random();
+        phi[i] += delta_phi; 
+        psi[i] += delta_psi;
+        temp_energy = energy(s,phi,psi,n);
+        delta_energy = temp_energy-e;
+        if (delta_energy<=0)
+            e=temp_energy;
+        else
+        {
+            P = (float)pow(M_E, -delta_energy/(*k*T) );
+            r = random();
+            if (r<P)
+                e = temp_energy;
+            else
+            {
+                phi[i] -= delta_phi;
+                psi[i] -= delta_psi;
+            }
+        }
+        t++;
+        T = *t0-sqrt(*alpha*t);
+		printf("All'iterazione numero: %d, con la temperatura %f, l'energia temporanea è %f, e quella scelta è: %f\n", t, T, temp_energy, e);
+    }
+	
+	*res_phi = phi;
+	*res_psi = psi;
+	*res_energy = e;
+	
+}
+
 void pst(params* input){
 	// --------------------------------------------------------------
 	// Codificare qui l'algoritmo di Predizione struttura terziaria
 	// --------------------------------------------------------------
-	printf("Rama energy: %f\n", rama_energy(input->phi, input->psi, &input->N));
-	printf("Hydro energy: %f\n", hydrophobic_energy(input-> seq, backbone(input-> seq, input->phi,input->psi ), &input->N));
-	printf("Electro energy: %f\n", electrostatic_energy(input-> seq, backbone(input-> seq, input->phi,input->psi ), &input->N));
-	printf("Pack energy: %f\n", packing_energy(input-> seq, backbone(input-> seq, input->phi,input->psi ), &input->N));
-	printf("Total energy: %f\n", energy(input-> seq, input->phi, input->psi, &input->N));
+	printf("Temperatura iniziale:%f", input->to);
+	simulated_annealing(input-> seq, &input->to, &input->alpha, &input->k, &input->N, &input->phi, &input-> psi, &input->e);
+
+	
+
 }
 
 int main(int argc, char** argv) {
@@ -711,6 +842,7 @@ int main(int argc, char** argv) {
 	}
 
 	input->seq = load_seq(seqfilename, &input->N, &d);
+	
 
 	
 	if(d != 1){
@@ -791,6 +923,12 @@ int main(int argc, char** argv) {
 			printf("]\n");
 		}
 	}
+
+	float* seq1 = load_data("phi_256_to20_k1_alpha1_sd3.ds2", &input->N, &input->N);
+    float* seq2 = load_data("psi_256_to20_k1_alpha1_sd3.ds2", &input->N, &input->N);
+	float* en = load_data("energy_float.ds2", &input->N, &input->N);
+
+	int i;
 
 	if(!input->silent)
 		printf("\nDone.\n");
