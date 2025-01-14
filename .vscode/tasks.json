@@ -1,0 +1,36 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Assembly",
+            "type": "shell",
+            "command": "nasm",
+            "args": [
+                "-f", "win32",
+                "${file}",
+                "-o", "${fileDirname}\\${fileBasenameNoExtension}.obj"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Link Assembly",
+            "type": "shell",
+            "command": "gcc",
+            "args": [
+                "-m32",
+                "${fileDirname}\\${fileBasenameNoExtension}.obj",
+                "-o", "${fileDirname}\\${fileBasenameNoExtension}.exe"
+                
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        }
+    ]
+}
