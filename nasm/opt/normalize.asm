@@ -1,7 +1,7 @@
 section .text 
-    global normalize_v
+    global normalize_opt
 
-    normalize_v:
+    normalize_opt:
         push ebp
         mov ebp, esp
 

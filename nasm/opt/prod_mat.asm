@@ -1,7 +1,7 @@
 section .text
-    global prod_mat
+    global prod_mat_opt
 
-    prod_mat:
+    prod_mat_opt:
         push ebp
         mov ebp, esp
 
