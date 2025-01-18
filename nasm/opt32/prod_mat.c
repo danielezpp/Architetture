@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <xmmintrin.h>
 
-extern void prod_mat(float* dist, float* newv);
+extern void prod_mat(float *dist, float* newv);
 
 int main(){
 
@@ -16,8 +16,8 @@ int main(){
     
     newv[0]= rot[3];
     newv[1]= rot[4];
-    newv[2]=rot[5];
-    newv[3]=0.0;
+    newv[2]= rot[5];
+    newv[3]= 0.0;
 
     prod_mat(&dist, newv);
 

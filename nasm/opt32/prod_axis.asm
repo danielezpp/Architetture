@@ -9,7 +9,7 @@ section .text
         mov edx, [ebp+12] ; puntatore a norm
 
         movaps xmm0, [ecx]
-        movaps xmm1, [ecx]
+        movaps xmm1, xmm0
         mulps xmm0, xmm1
         haddps xmm0, xmm0
         haddps xmm0, xmm0

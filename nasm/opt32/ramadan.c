@@ -5,7 +5,7 @@
 #include <xmmintrin.h>
 
 // Dichiarazione della funzione Assembly
-extern void rama_energy(float* phi, float* psi, float* result);
+extern void rama_energy64(float* phi, float* psi, float* result);
 
 int main() {
     // Dimensione dell'array (n = 256, deve essere multiplo di 4)

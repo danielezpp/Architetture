@@ -1,10 +1,10 @@
 /**************************************************************************************
 * 
 * CdL Magistrale in Ingegneria Informatica
-* Corso di Architetture e Programmazione dei Sistemi di Elaborazione - a.a. 2024/25
+* Corso di Architetture e Programmazione dei Sistemi di Elaborazione - a.a. 2020/21
 * 
 * Progetto dell'algoritmo Predizione struttura terziaria proteine 221 231 a
-* in linguaggio assembly x86-32 + SSE
+* in linguaggio assembly x86-64 + SSE
 * 
 * F. Angiulli F. Fassetti S. Nisticò, novembre 2024
 * 
@@ -26,16 +26,16 @@
 * 
 * potrebbe essere necessario installare le seguenti librerie:
 * 
-*    sudo apt-get install lib32gcc-4.8-dev (o altra versione)
+*    sudo apt-get install lib64gcc-4.8-dev (o altra versione)
 *    sudo apt-get install libc6-dev-i386
 * 
 * Per generare il file eseguibile:
 * 
-* nasm -f elf32 pst32.nasm && gcc -m32 -msse -O0 -no-pie sseutils32.o pst32.o pst32c.c -o pst32c -lm && ./pst32c $pars
+* nasm -f elf64 pst64.nasm && gcc -m64 -msse -O0 -no-pie sseutils64.o pst64.o pst64c.c -o pst64c -lm && ./pst64c $pars
 * 
 * oppure
 * 
-* ./runpst32
+* ./runpst64
 * 
 */
 
@@ -47,26 +47,25 @@
 #include <libgen.h>
 #include <xmmintrin.h>
 
-#define	type		float
+#define	type		double
 #define	MATRIX		type*
 #define	VECTOR		type*
 
 #define random() (((type) rand())/RAND_MAX)
 #define M_PI 3.14159265358979323846
 
-
-type hydrophobicity[] = {1.8, -1, 2.5, -3.5, -3.5, 2.8, -0.4, -3.2, 4.5, -1, -3.9, 3.8, 1.9, -3.5, -1, -1.6, -3.5, -4.5, -0.8, -0.7, -1, 4.2, -0.9, -1, -1.3, -1};		// hydrophobicity
-type volume[] = {88.6, -1, 108.5, 111.1, 138.4, 189.9, 60.1, 153.2, 166.7, -1, 168.6, 166.7, 162.9, 114.1, -1, 112.7, 143.8, 173.4, 89.0, 116.1, -1, 140.0, 227.8, -1, 193.6, -1};		// volume
-type charge[] = {0, -1, 0, -1, -1, 0, 0, 0.5, 0, -1, 1, 0, 0, 0, -1, 0, 0, 1, 0, 0, -1, 0, 0, -1, 0, -1};		// charge
+type hydrophobicity[] = {1.8, -1, 2.5, -3.5, -3.5, 2.8, -0.4, -3.2, 4.5, -1, -3.9, 3.8, 1.9, -3.5, -1, -1.6, -3.5, -4.5, -0.8, -0.7, -1, 4.2, -0.9, -1, -1.3, -1};		
+type volume[] = {88.6, -1, 108.5, 111.1, 138.4, 189.9, 60.1, 153.2, 166.7, -1, 168.6, 166.7, 162.9, 114.1, -1, 112.7, 143.8, 173.4, 89.0, 116.1, -1, 140.0, 227.8, -1, 193.6, -1};
+type charge[] = {0, -1, 0, -1, -1, 0, 0, 0.5, 0, -1, 1, 0, 0, 0, -1, 0, 0, 1, 0, 0, -1, 0, 0, -1, 0, -1};
 type precomputed_f [] = {1.0, 1.0, 2.0, 6.0, 24.0, 120.0, 720.0, 5040.0};
 
 typedef struct {
 	char* seq;		// sequenza di amminoacidi
-	int N;			// lunghezza sequenza
-	unsigned int sd; 	// seed per la generazione casuale
+	int N;		// lunghezza sequenza
+	unsigned int sd; 	// seed per la generazione	casuale
 	type to;		// temperatura INIZIALE
 	type alpha;		// tasso di raffredamento
-	type k;		// costante
+	type k;			// costante
 	VECTOR hydrophobicity; // hydrophobicity
 	VECTOR volume;		// volume
 	VECTOR charge;		// charge
@@ -82,9 +81,9 @@ typedef struct {
 /*
 * 
 *	Le funzioni sono state scritte assumento che le matrici siano memorizzate 
-* 	mediante un array (type*), in modo da occupare un unico blocco
+* 	mediante un array (float*), in modo da occupare un unico blocco
 * 	di memoria, ma a scelta del candidato possono essere 
-* 	memorizzate mediante array di array (type**).
+* 	memorizzate mediante array di array (float**).
 * 
 * 	In entrambi i casi il candidato dovr� inoltre scegliere se memorizzare le
 * 	matrici per righe (row-major order) o per colonne (column major-order).
@@ -94,7 +93,7 @@ typedef struct {
 */
 
 void* get_block(int size, int elements) { 
-	return _mm_malloc(elements*size,16); 
+	return _mm_malloc(elements*size,32); 
 }
 
 void free_block(void* p) { 
@@ -128,7 +127,7 @@ void dealloc_matrix(void* mat) {
 * 	Codifica del file:
 * 	primi 4 byte: numero di righe (N) --> numero intero
 * 	successivi 4 byte: numero di colonne (M) --> numero intero
-* 	successivi N*M*4 byte: matrix data in row-major order --> numeri typeing-point a precisione singola
+* 	successivi N*M*4 byte: matrix data in row-major order --> numeri floating-point a precisione singola
 * 
 *****************************************************************************
 *	Se lo si ritiene opportuno, � possibile cambiare la codifica in memoria
@@ -196,7 +195,6 @@ char* load_seq(char* filename, int *n, int *k) {
 	
 	char* data = alloc_char_matrix(rows,cols);
 	status = fread(data, sizeof(char), rows*cols, fp);
-	printf("Ho caricato la sequenza\n");
 	fclose(fp);
 	
 	*n = rows;
@@ -215,7 +213,7 @@ char* load_seq(char* filename, int *n, int *k) {
 * 	Codifica del file:
 * 	primi 4 byte: numero di righe (N) --> numero intero a 32 bit
 * 	successivi 4 byte: numero di colonne (M) --> numero intero a 32 bit
-* 	successivi N*M*4 byte: matrix data in row-major order --> numeri interi o typeing-point a precisione singola
+* 	successivi N*M*4 byte: matrix data in row-major order --> numeri interi o floating-point a precisione singola
 */
 void save_data(char* filename, void* X, int n, int k) {
 	FILE* fp;
@@ -247,7 +245,7 @@ void save_data(char* filename, void* X, int n, int k) {
 * 	Codifica del file:
 * 	primi 4 byte: contenenti l'intero 1 		--> numero intero a 32 bit
 * 	successivi 4 byte: numero di elementi k     --> numero intero a 32 bit
-* 	successivi byte: elementi del vettore 		--> k numero typeing-point a precisione singola
+* 	successivi byte: elementi del vettore 		--> k numero floating-point a precisione singola
 */
 void save_out(char* filename, MATRIX X, int k) {
 	FILE* fp;
@@ -278,9 +276,6 @@ void gen_rnd_mat(VECTOR v, int N){
 		v[i] = (random()*2 * M_PI) - M_PI;
 	}
 }
-
-// PROCEDURE ASSEMBLY
-extern void prova(params* input);
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -367,7 +362,7 @@ type prod_scal(VECTOR v, VECTOR w, int n) {
     return prod;
 }
 
-void extern prod_axis(type* axis, type* norm);
+extern void prod_axis_64_pad(type* axis, type* norm, int flag);
 
 //FUNZIONE PER LA MATRICE DI ROTAZIONE DI BASE
 type* rotation (type *axis, type theta){
@@ -379,9 +374,9 @@ type* rotation (type *axis, type theta){
 
 	 // Copia locale per preservare `axis`
     type* normalized_axis = alloc_matrix(1,4);
-    prod_axis(axis, normalized_axis);
+    prod_axis_64_pad(axis, normalized_axis, 0);
 	/*type scalar_prod = prod_scal(axis, axis, 3);
-    //type scalar_prod = (axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]); 
+    //type scalar_prod = (axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]); 45k di energia in più ma più efficiente
     if (scalar_prod == 0.0) {
         printf("Errore: il vettore asse ha magnitudine zero.\n");
         free(rotated_m);
@@ -413,27 +408,7 @@ type* rotation (type *axis, type theta){
     return rotated_m;
 }
 
-//NEW METHOD!!!! NON APPORTA MIGLIORAMENTI
-/*MATRIX prod_matrix(MATRIX A, MATRIX B, int rowsA, int colsA, int rowsB, int colsB) {
-	if (colsA != rowsB) {
-        printf("Il numero di colonne di A è diverso dal numero di righe di B!\n");
-        exit(-1);
-    }
-
-    MATRIX C = alloc_matrix(rowsA, colsB);
-    for (int i = 0; i < rowsA; i++) {
-        for (int j = 0; j < colsB; j++) {
-			type sum = 0;
-            for (int k = 0; k < colsA; k++) {
-                sum += A[i * colsA + k] * B[k * colsB + j];
-            }
-			C[i * colsB + j] = sum;
-        }
-    }
-
-    return C;
-}*/
-
+extern void prod_mat64(type dist, type* newv);
 type* prod_mat(type dist, type* rot) {
     if (rot == NULL) {
         fprintf(stderr, "Errore: matrice di rotazione NULL in prod_mat\n");
@@ -470,6 +445,9 @@ void normalize(type v[3]){
 
 void extern normalize_opt(type* v);
 void extern prod_mat_opt(type* dist, type* newv);
+void normalize64(type* v, type* norm){
+    prod_axis_64_pad(v, norm, 1);
+}
 
 //PRODOTTO TRA VETTORE E MATRICE (CASO SPECIFICO V = {0,X,0})
 void position(MATRIX coords, int index, type dist, type theta) {
@@ -477,17 +455,18 @@ void position(MATRIX coords, int index, type dist, type theta) {
     v[0] = coords[index-3] - coords[index-6];
     v[1] = coords[index-2] - coords[index-5];
     v[2] = coords[index-1] - coords[index-4];
-    v[3] = 0.0;
+	v[3] = 0.0;
 
-    normalize_opt(v);
+    normalize64(v, v);
+	//normalize(v);
 	/*VECTOR w = alloc_matrix(1,3);
     w[0] = v[0];
     w[1] = v[1];
     w[2] = v[2];*/
 
 	MATRIX rot = rotation(v,theta);
-	VECTOR tmp = alloc_matrix(1,3);
-	tmp[0] = 0; tmp[1] = dist; tmp[2] = 0;
+	//VECTOR tmp = alloc_matrix(1,3);
+	//tmp[0] = 0; tmp[1] = dist; tmp[2] = 0;
 
 	//MATRIX newv = prod_matrix(tmp,rot,1,3,3,3);
     type* newv=alloc_matrix(1,4);
@@ -495,9 +474,11 @@ void position(MATRIX coords, int index, type dist, type theta) {
     newv[1]= rot[4];
     newv[2]=rot[5];
     newv[3]=0.0;
-
-    prod_mat_opt(&dist, newv);
+	
+	//newv = prod_mat(dist, rot);
+    prod_mat64(dist, newv);
     //MATRIX newv = prod_mat(dist, rot);
+
 	
     coords [index] = coords[index-3]+ newv[0];
     coords [index+1] = coords[index-2]+ newv[1];
@@ -534,8 +515,6 @@ type* backbone(char *sequence, type *phi, type *psi, int n){
 
     for (i=0;i<n;i++){
         int index = i*9;
-		type* newv;
-		type* rot;
 
         if (i>0)
         {
@@ -557,9 +536,10 @@ type min(type a, type b) {
 	return (a < b) ? a : b;
 }
 
-extern void rama_energy(type* phi, type* psi, type* rama_energy);
+extern void rama_energy_asm(type* phi, type* psi, type* rama_energy);
+extern type rama_energy64(double* phi, double* psi, int q, int r);
 
-/*type rama_energy(type* phi, type* psi, int n)
+type rama_energy(type* phi, type* psi, int n)
 {
     type alpha_phi = -57.8;
     type alpha_psi = -47.0;
@@ -574,7 +554,7 @@ extern void rama_energy(type* phi, type* psi, type* rama_energy);
         energy += 0.5 * min(alpha_dist, beta_dist);
     }
 	return energy;
-}*/
+}
 
 MATRIX get_ca_coords(MATRIX coords, int n){
     MATRIX ca_coords = alloc_matrix(n,3);
@@ -588,15 +568,16 @@ MATRIX get_ca_coords(MATRIX coords, int n){
     return ca_coords;
 }
 
-/*type get_distance(type* v1, type* v2){
+type get_distance(type* v1, type* v2){
     type dx = v2[0] - v1[0];
     type dy = v2[1] - v1[1];
     type dz = v2[2] - v1[2];
 
     return sqrt(pow(dx,2) + pow(dy,2) + pow(dz,2));
-}*/
+}
 
-extern type get_distance(type* v, type* w);
+extern type get_distance_opt(type* v, type* w);
+extern type get_distance64(double* v, double* w);
 
 type hydrophobic_energy(char* sequence, type* coords, int n) {
     
@@ -604,6 +585,8 @@ type hydrophobic_energy(char* sequence, type* coords, int n) {
     MATRIX ca_coords = get_ca_coords(coords, n);
     type* v = alloc_matrix(1,4);
     type* w = alloc_matrix(1,4);
+	//type* v = alloc_matrix(1,3);
+    //type* w = alloc_matrix(1,3);
 
     // Itera su tutte le coppie di residui
     for (int i = 0; i < n; i++) {
@@ -612,15 +595,15 @@ type hydrophobic_energy(char* sequence, type* coords, int n) {
 			v[0] = ca_coords[i*3];
             v[1] = ca_coords[i*3+1];
             v[2] = ca_coords[i*3+2];
-            v[3] = 0.0f;
+			v[3] = 0.0;
 
             w[0] = ca_coords[j*3];
             w[1] = ca_coords[j*3+1];
             w[2] = ca_coords[j*3+2];
-            w[3] = 0.0f;
+			w[0] = 0.0;
 
 
-            type dist = get_distance(v,w);
+            type dist = get_distance64(v,w);
             // Considera solo distanze inferiori a 10.0
             if (dist < 10.0) {
                 type hydro_i = hydrophobicity[sequence[i]-65];
@@ -637,20 +620,24 @@ type electrostatic_energy(char* s, type* coords, int n){
 	type electro_energy= 0.0;
     MATRIX ca_coords = get_ca_coords(coords, n);
 	int i;int j;
-    type* v = alloc_matrix(1,3);
-    type* w = alloc_matrix(1,3);
+    type* v = alloc_matrix(1,4);
+    type* w = alloc_matrix(1,4);
+	//type* v = alloc_matrix(1,3);
+    //type* w = alloc_matrix(1,3);
 
 	for(i=0; i< n; i++){
 		for(j= i+1; j< n; j++){
 			v[0] = ca_coords[i*3];
             v[1] = ca_coords[i*3+1];
             v[2] = ca_coords[i*3+2];
+			//v[3] = 0.0;
 
             w[0] = ca_coords[j*3];
             w[1] = ca_coords[j*3+1];
             w[2] = ca_coords[j*3+2];
+			//w[3] = 0.0;
 
-            type dist = get_distance(v,w);
+            type dist = get_distance64(v,w);
 
 			if(dist < 10.0 && charge[s[i]-65]!=0.0 && charge[s[j]-65]!=0.0){
 				electro_energy += (charge[s[i]-65]*charge[s[j]-65])/(dist*4.0);
@@ -667,8 +654,10 @@ type packing_energy(char* s, type* coords, int n){
     MATRIX ca_coords = get_ca_coords(coords, n);
 	int i; int j;
     
-    type* v = alloc_matrix(1,3);
-    type* w = alloc_matrix(1,3);
+    type* v = alloc_matrix(1,4);
+    type* w = alloc_matrix(1,4);
+	//type* v = alloc_matrix(1,3);
+    //type* w = alloc_matrix(1,3);
 
 	for (i=0;i<n;i++){
         int pos_i = s[i] - 65;
@@ -678,12 +667,14 @@ type packing_energy(char* s, type* coords, int n){
             v[0] = ca_coords[i*3];
             v[1] = ca_coords[i*3+1];
             v[2] = ca_coords[i*3+2];
+			//v[3] = 0.0;
 
             w[0] = ca_coords[j*3];
             w[1] = ca_coords[j*3+1];
             w[2] = ca_coords[j*3+2];
+			//w[3] = 0.0;
 
-            type dist = get_distance(v,w);
+            type dist = get_distance64(v,w);
             if(dist<10.0){
                 int pos_j = s[j]- 65;
                 density += volume[pos_j] / pow(dist, 3);
@@ -697,8 +688,11 @@ type packing_energy(char* s, type* coords, int n){
 
 type energy(char* s, type* phi, type* psi, int n) {
     type* coords = backbone(s,phi,psi,n);
-    type rama_e;
-    rama_energy(phi, psi, &rama_e);
+	//type* ca_coords = get_ca_coords(coords, n);
+    int q = (int) n/4;
+    int r = n%4;
+    type rama_e = rama_energy(phi, psi, n);
+	//type rama_e_asm = rama_energy64(phi, psi, q, r);
 	type hydro_e = hydrophobic_energy(s, coords, n);
     type electro_e = electrostatic_energy(s, coords, n);
 
@@ -757,6 +751,7 @@ void pst(params* input){
             }
         }
         t++;
+		//printf("Iterazione numero: %d", t);
         T = input->to-sqrt(input->alpha*t);
     }
 	
@@ -770,7 +765,7 @@ int main(int argc, char** argv) {
 	char fname_psi[256];
 	char* seqfilename = NULL;
 	clock_t t;
-	type time;
+	float time;
 	int d;
 	
 	//
@@ -785,9 +780,9 @@ int main(int argc, char** argv) {
 	input->sd = -1;		
 	input->phi = NULL;		
 	input->psi = NULL;
+	input->e = -1;
 	input->silent = 0;
 	input->display = 0;
-	input->e = -1;
 	input->hydrophobicity = hydrophobicity;
 	input->volume = volume;
 	input->charge = charge;
@@ -877,7 +872,6 @@ int main(int argc, char** argv) {
 	}
 
 	input->seq = load_seq(seqfilename, &input->N, &d);
-	
 
 	
 	if(d != 1){
@@ -927,7 +921,7 @@ int main(int argc, char** argv) {
 	t = clock();
 	pst(input);
 	t = clock() - t;
-	time = ((type)t)/CLOCKS_PER_SEC;
+	time = ((float)t)/CLOCKS_PER_SEC;
 
 	if(!input->silent)
 		printf("PST time = %.3f secs\n", time);
@@ -958,12 +952,6 @@ int main(int argc, char** argv) {
 			printf("]\n");
 		}
 	}
-
-	type* seq1 = load_data("phi_256_to20_k1_alpha1_sd3.ds2", &input->N, &input->N);
-    type* seq2 = load_data("psi_256_to20_k1_alpha1_sd3.ds2", &input->N, &input->N);
-	type* en = load_data("energy_type.ds2", &input->N, &input->N);
-
-	int i;
 
 	if(!input->silent)
 		printf("\nDone.\n");

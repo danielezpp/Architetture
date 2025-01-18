@@ -52,10 +52,12 @@
 #define	VECTOR		type*
 
 #define random() (((type) rand())/RAND_MAX)
+#define M_PI 3.14159265358979323846
 
 type hydrophobicity[] = {1.8, -1, 2.5, -3.5, -3.5, 2.8, -0.4, -3.2, 4.5, -1, -3.9, 3.8, 1.9, -3.5, -1, -1.6, -3.5, -4.5, -0.8, -0.7, -1, 4.2, -0.9, -1, -1.3, -1};		
 type volume[] = {88.6, -1, 108.5, 111.1, 138.4, 189.9, 60.1, 153.2, 166.7, -1, 168.6, 166.7, 162.9, 114.1, -1, 112.7, 143.8, 173.4, 89.0, 116.1, -1, 140.0, 227.8, -1, 193.6, -1};
 type charge[] = {0, -1, 0, -1, -1, 0, 0, 0.5, 0, -1, 1, 0, 0, 0, -1, 0, 0, 1, 0, 0, -1, 0, 0, -1, 0, -1};
+type precomputed_f [] = {1.0, 1.0, 2.0, 6.0, 24.0, 120.0, 720.0, 5040.0};
 
 typedef struct {
 	char* seq;		// sequenza di amminoacidi
@@ -91,7 +93,7 @@ typedef struct {
 */
 
 void* get_block(int size, int elements) { 
-	return _mm_malloc(elements*size,16); 
+	return _mm_malloc(elements*size,32); 
 }
 
 void free_block(void* p) { 
@@ -275,13 +277,489 @@ void gen_rnd_mat(VECTOR v, int N){
 	}
 }
 
-// PROCEDURE ASSEMBLY
-extern void prova(params* input);
+//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//								FUNZIONI FATTE DA NOI!!
+
+//Calcola il prodotto scalare di un vettore con sé stesso (axis*axis)
+/*type prod_scal(type* a, int length){
+    int i;
+    type somma = 0;
+
+    for (i=0; i<length;i++){
+        somma += a[i]*a[i];
+    }
+
+    return somma;
+}*/
+
+// Funzione per calcolare il fattoriale
+type factorial(int n) {
+    type result = 1.0;
+    for (int i = 1; i <= n; i++) {
+        result *= i;
+    }
+    return result;
+}
+//FATTORIALE OTTIMIZZATO
+type opt_factorial(int n){
+	return precomputed_f[n];
+}
+
+// Funzione per calcolare sin(x) usando la serie di Taylor
+type taylor_sin2(type x) {
+    int terms = 4;
+    type result = 0.0;
+    for (int i = 0; i < terms; i++) {
+        // Calcola il termine corrente
+        type term = pow(x, 2 * i + 1) / factorial(2 * i + 1);
+        // Aggiungi o sottrai in base alla posizione
+        if (i % 2 == 0) {
+            result += term; // Termini dispari positivi
+        } else {
+            result -= term; // Termini dispari negativi
+        }
+    }
+    return result;
+}
+
+type taylor_cos(type x) {
+    return 1 - (pow(x, 2) / opt_factorial(2)) 
+             + (pow(x, 4) / opt_factorial(4)) 
+             - (pow(x, 6) / opt_factorial(6));
+}
+
+// Funzione per calcolare cos(x) usando la serie di Taylor
+ type taylor_cos2(type x) {
+    int terms = 4;
+    type result = 0.0;
+    for (int i = 0; i < terms; i++) {
+        // Calcola il termine corrente
+        type term = pow(x, 2 * i) / factorial(2 * i);
+        // Aggiungi o sottrai in base alla posizione
+        if (i % 2 == 0) {
+            result += term; // Termini pari positivi
+        } else {
+            result -= term; // Termini pari negativi
+        }
+    }
+    return result;
+}
+
+type taylor_sin(type x){
+	return x - (pow(x, 3) / opt_factorial(3)) 
+             + (pow(x, 5) / opt_factorial(5)) 
+             - (pow(x, 7) / opt_factorial(7));
+}
+
+//NEW METHOD
+type prod_scal(VECTOR v, VECTOR w, int n) {
+    type prod = 0.0;
+    for (int i = 0; i < n; i++) {
+        prod += v[i] * w[i];
+    }
+    return prod;
+}
+
+void extern prod_axis(type* axis, type* norm);
+
+//FUNZIONE PER LA MATRICE DI ROTAZIONE DI BASE
+type* rotation (type *axis, type theta){
+    type* rotated_m = alloc_matrix(3,3);
+	
+    if(!rotated_m){
+		printf("Errore nell'allocazione di rotated_M");
+	}
+
+	 // Copia locale per preservare `axis`
+    type* normalized_axis = alloc_matrix(1,3);
+    //prod_axis(axis, normalized_axis);
+	type scalar_prod = prod_scal(axis, axis, 3);
+    //type scalar_prod = (axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]); 45k di energia in più ma più efficiente
+    if (scalar_prod == 0.0) {
+        printf("Errore: il vettore asse ha magnitudine zero.\n");
+        free(rotated_m);
+        return NULL;
+    }
+
+    normalized_axis [0] = axis [0] / scalar_prod;
+	normalized_axis [1] = axis [1] / scalar_prod;
+	normalized_axis [2] = axis [2] / scalar_prod;
+
+    // Calcola i coefficienti quaternion
+    type a = taylor_cos(theta / 2.0);
+    type b = -1 * normalized_axis[0] * taylor_sin(theta / 2.0);
+    type c = -1 * normalized_axis[1] * taylor_sin(theta / 2.0);
+    type d = -1 * normalized_axis[2] * taylor_sin(theta / 2.0);
+
+    rotated_m[0] = a * a + b * b - c * c - d * d;
+    rotated_m[1] = 2 * (b * c + a * d);
+    rotated_m[2] = 2 * (b * d - a * c);
+
+    rotated_m[3] = 2 * (b * c - a * d);
+    rotated_m[4] = a * a - b * b + c * c - d * d;
+    rotated_m[5] = 2 * (c * d + a * b);
+
+    rotated_m[6] = 2 * (b * d + a * c);
+    rotated_m[7] = 2 * (c * d - a * b);
+    rotated_m[8] = a * a - b * b - c * c + d * d;
+
+    return rotated_m;
+}
+
+//NEW METHOD!!!! NON APPORTA MIGLIORAMENTI
+MATRIX prod_matrix(MATRIX A, MATRIX B, int rowsA, int colsA, int rowsB, int colsB) {
+	if (colsA != rowsB) {
+        printf("Il numero di colonne di A è diverso dal numero di righe di B!\n");
+        exit(-1);
+    }
+
+    MATRIX C = alloc_matrix(rowsA, colsB);
+    for (int i = 0; i < rowsA; i++) {
+        for (int j = 0; j < colsB; j++) {
+			type sum = 0;
+            for (int k = 0; k < colsA; k++) {
+                sum += A[i * colsA + k] * B[k * colsB + j];
+            }
+			C[i * colsB + j] = sum;
+        }
+    }
+
+    return C;
+}
+
+type* prod_mat(type dist, type* rot) {
+    if (rot == NULL) {
+        fprintf(stderr, "Errore: matrice di rotazione NULL in prod_mat\n");
+        exit(EXIT_FAILURE);
+    }
+
+    type* newv = alloc_matrix(1, 3);
+    if (newv == NULL) {
+        fprintf(stderr, "Errore: allocazione memoria fallita in prod_mat\n");
+        exit(EXIT_FAILURE);
+    }
+
+
+    // Calcolo dei nuovi valori
+    newv[0] =  dist * rot[3]; 
+    newv[1] =  dist * rot[4]; 
+    newv[2] =  dist * rot[5];
+
+    return newv;
+}
+
+//NORMALIZZAZIONE DELLA MATRICE
+void normalize(type v[3]){
+    type magn = sqrt(v[0]*v[0] + v[1]*v[1]+ v[2]*v[2]);
+    if(magn < 1e-6){
+        printf("Errore!");
+        return;
+    }
+
+    v[0] /= magn;
+    v[1] /= magn;
+    v[2] /= magn;
+}
+
+void extern normalize_opt(type* v);
+void extern prod_mat_opt(type* dist, type* newv);
+
+//PRODOTTO TRA VETTORE E MATRICE (CASO SPECIFICO V = {0,X,0})
+void position(MATRIX coords, int index, type dist, type theta) {
+	VECTOR v = alloc_matrix(1,3);
+    v[0] = coords[index-3] - coords[index-6];
+    v[1] = coords[index-2] - coords[index-5];
+    v[2] = coords[index-1] - coords[index-4];
+
+    normalize(v);
+	/*VECTOR w = alloc_matrix(1,3);
+    w[0] = v[0];
+    w[1] = v[1];
+    w[2] = v[2];*/
+
+	MATRIX rot = rotation(v,theta);
+	VECTOR tmp = alloc_matrix(1,3);
+	tmp[0] = 0; tmp[1] = dist; tmp[2] = 0;
+
+	//MATRIX newv = prod_matrix(tmp,rot,1,3,3,3);
+    type* newv=alloc_matrix(1,4);
+    /*newv[0]= rot[3];
+    newv[1]= rot[4];
+    newv[2]=rot[5];
+    newv[3]=0.0;*/
+
+    newv = prod_mat(dist, rot);
+    //MATRIX newv = prod_mat(dist, rot);
+	
+    coords [index] = coords[index-3]+ newv[0];
+    coords [index+1] = coords[index-2]+ newv[1];
+    coords [index+2] = coords[index-1]+ newv[2];
+
+}
+
+
+
+//FUNZIONE BACKBONE
+
+type* backbone(char *sequence, type *phi, type *psi, int n){
+
+    type* coords = alloc_matrix(n, 9);
+
+    //Distanze standard nel backbone
+    type r_ca_n= 1.46;
+    type r_ca_c= 1.52;
+    type r_c_n= 1.33;
+
+    //Angoli standard nel backbone
+    type th_ca_c_n= 2.028;
+    type th_c_n_ca= 2.124;
+    type th_n_ca_c= 1.940;
+
+    coords [0] = 0.0;
+    coords [1] = 0.0;
+    coords [2] = 0.0;
+    coords [3] = r_ca_n;
+    coords [4] = 0.0;
+    coords [5] = 0.0;
+
+    int i;
+
+    for (i=0;i<n;i++){
+        int index = i*9;
+
+        if (i>0)
+        {
+            //Posiziona N usando l'ultimo C
+            position(coords, index, r_c_n, th_c_n_ca);
+
+            position(coords, index+3, r_ca_n, phi[i]);
+        }
+
+        //Posiziona C usando Psi
+        position(coords, index+6, r_ca_c, psi[i]);
+    
+    }
+
+    return coords;
+}
+
+type min(type a, type b) {
+	return (a < b) ? a : b;
+}
+
+extern void rama_energy_asm(type* phi, type* psi, type* rama_energy);
+
+type rama_energy(type* phi, type* psi, int n)
+{
+    type alpha_phi = -57.8;
+    type alpha_psi = -47.0;
+    type beta_phi = -119.0;
+    type beta_psi = 113.0;
+    type energy = 0.0;
+	int i;
+    
+	for (i = 0; i < n; i++) {
+        type alpha_dist = sqrt(pow(phi[i] - alpha_phi, 2) + pow(psi[i] - alpha_psi, 2));
+        type beta_dist = sqrt(pow(phi[i] - beta_phi, 2) + pow(psi[i] - beta_psi, 2));
+        energy += 0.5 * min(alpha_dist, beta_dist);
+    }
+	return energy;
+}
+
+MATRIX get_ca_coords(MATRIX coords, int n){
+    MATRIX ca_coords = alloc_matrix(n,3);
+    for(int i=0; i<n; i++){
+        int ca_index = i*9;
+        ca_coords[i*3] = coords[ca_index+3];
+        ca_coords[i*3+1] = coords[ca_index+3+1];
+        ca_coords[i*3+2] = coords[ca_index+3+2];
+    }
+
+    return ca_coords;
+}
+
+type get_distance(type* v1, type* v2){
+    type dx = v2[0] - v1[0];
+    type dy = v2[1] - v1[1];
+    type dz = v2[2] - v1[2];
+
+    return sqrt(pow(dx,2) + pow(dy,2) + pow(dz,2));
+}
+
+extern type get_distance64(double* v, double* w);
+
+type hydrophobic_energy(char* sequence, type* coords, int n) {
+    
+    type hydro_energy = 0.0;
+    MATRIX ca_coords = get_ca_coords(coords, n);
+    type* v = alloc_matrix(1,4);
+    type* w = alloc_matrix(1,4);
+
+    // Itera su tutte le coppie di residui
+    for (int i = 0; i < n; i++) {
+        for (int j = i + 1; j < n; j++) {
+            // Creo i due vettori contenenti le coordinate dei rispettivi atomi
+			v[0] = ca_coords[i*3];
+            v[1] = ca_coords[i*3+1];
+            v[2] = ca_coords[i*3+2];
+			v[0] = 0.0;
+
+            w[0] = ca_coords[j*3];
+            w[1] = ca_coords[j*3+1];
+            w[2] = ca_coords[j*3+2];
+			v[1] = 0.0;
+
+
+            type dist = get_distance64(v,w);
+            // Considera solo distanze inferiori a 10.0
+            if (dist < 10.0) {
+                type hydro_i = hydrophobicity[sequence[i]-65];
+                type hydro_j = hydrophobicity[sequence[j]-65];
+                hydro_energy += (hydro_i * hydro_j) / dist;
+            }
+        }
+    }
+    return hydro_energy;
+}
+
+
+type electrostatic_energy(char* s, type* coords, int n){
+	type electro_energy= 0.0;
+    MATRIX ca_coords = get_ca_coords(coords, n);
+	int i;int j;
+    type* v = alloc_matrix(1,4);
+    type* w = alloc_matrix(1,4);
+
+	for(i=0; i< n; i++){
+		for(j= i+1; j< n; j++){
+			v[0] = ca_coords[i*3];
+            v[1] = ca_coords[i*3+1];
+            v[2] = ca_coords[i*3+2];
+			v[3] = 0.0;
+
+            w[0] = ca_coords[j*3];
+            w[1] = ca_coords[j*3+1];
+            w[2] = ca_coords[j*3+2];
+			w[3] = 0.0;
+
+            type dist = get_distance64(v,w);
+
+			if(dist < 10.0 && charge[s[i]-65]!=0.0 && charge[s[j]-65]!=0.0){
+				electro_energy += (charge[s[i]-65]*charge[s[j]-65])/(dist*4.0);
+			}
+
+		}
+	}
+
+	return electro_energy;
+}
+
+type packing_energy(char* s, type* coords, int n){
+	type pack_energy = 0.0;
+    MATRIX ca_coords = get_ca_coords(coords, n);
+	int i; int j;
+    
+    type* v = alloc_matrix(1,4);
+    type* w = alloc_matrix(1,4);
+
+	for (i=0;i<n;i++){
+        int pos_i = s[i] - 65;
+		type density = 0.0;
+		for(j=0; j<n; j++){
+            if(i!=j){
+            v[0] = ca_coords[i*3];
+            v[1] = ca_coords[i*3+1];
+            v[2] = ca_coords[i*3+2];
+			v[3] = 0.0;
+
+            w[0] = ca_coords[j*3];
+            w[1] = ca_coords[j*3+1];
+            w[2] = ca_coords[j*3+2];
+			w[3] = 0.0;
+
+            type dist = get_distance64(v,w);
+            if(dist<10.0){
+                int pos_j = s[j]- 65;
+                density += volume[pos_j] / pow(dist, 3);
+                }
+            }
+		}
+		pack_energy+= pow(volume[s[i]-65]-density, 2);
+	}
+	return pack_energy;
+}
+
+type energy(char* s, type* phi, type* psi, int n) {
+    type* coords = backbone(s,phi,psi,n);
+	//type* ca_coords = get_ca_coords(coords, n);
+    type rama_e = rama_energy(phi, psi, n);
+    //rama_energy(phi, psi, &rama_e);
+	type hydro_e = hydrophobic_energy(s, coords, n);
+    type electro_e = electrostatic_energy(s, coords, n);
+
+    type packing_e = packing_energy(s, coords, n);
+
+    type wrama = 1.0;
+	type whydro = 0.5;
+    type welec = 0.2;
+    type wpack = 0.3;
+
+    return wrama * rama_e + whydro * hydro_e + welec * electro_e + wpack * packing_e;
+}
 
 void pst(params* input){
 	// --------------------------------------------------------------
 	// Codificare qui l'algoritmo di Predizione struttura terziaria
 	// --------------------------------------------------------------
+	//simulated_annealing(input-> seq, &input->to, &input->alpha, &input->k, &input->N, &input->phi, &input-> psi, &input->e);
+    char* s = input->seq;
+	type T = input->to;
+	int n = input->N;
+	VECTOR phi = input->phi;
+	VECTOR psi = input->psi;
+	
+    type e = energy(s,phi,psi, n);
+    int t = 0;
+    int i;
+    type delta_phi;
+    type delta_psi;
+    type delta_energy;
+    type temp_energy;
+    type P;
+    type r;
+	printf("\nSequenza :%s\n", s);
+    while (T>0)
+    {
+        i = random()*(n);
+        delta_phi = (random()*2 * M_PI) - M_PI;
+        delta_psi = (random()*2 * M_PI) - M_PI;
+        phi[i] += delta_phi; 
+        psi[i] += delta_psi;
+        temp_energy = energy(s,phi,psi,n);
+        delta_energy = temp_energy-e;
+        if (delta_energy<=0)
+            e=temp_energy;
+        else
+        {
+            P = exp(-delta_energy/((input-> k)*T));
+            r = random();
+            if (r<=P)
+                e = temp_energy;
+            else
+            {
+                phi[i] -= delta_phi;
+                psi[i] -= delta_psi;
+            }
+        }
+        t++;
+        T = input->to-sqrt(input->alpha*t);
+    }
+	
+	
+	input->e = e;
+
 }
 
 int main(int argc, char** argv) {
@@ -436,7 +914,7 @@ int main(int argc, char** argv) {
 	}
 
 	// COMMENTARE QUESTA RIGA!
-	prova(input);
+	//prova(input);
 	//
 
 	//
