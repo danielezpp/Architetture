@@ -961,7 +961,7 @@ int main(int argc, char** argv) {
 
 	type* seq1 = load_data("phi_256_to20_k1_alpha1_sd3.ds2", &input->N, &input->N);
     type* seq2 = load_data("psi_256_to20_k1_alpha1_sd3.ds2", &input->N, &input->N);
-	type* en = load_data("energy_type.ds2", &input->N, &input->N);
+	type* en = load_data("energy_float.ds2", &input->N, &input->N);
 
 	int i;
 
