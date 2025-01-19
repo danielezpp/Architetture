@@ -24,6 +24,7 @@ section .text
             vmovapd ymm2, [rsi]; xmm2 = 4 elementi di psi
             vmovapd ymm4, ymm2; copiamo ymm2 in ymm4
 
+            ;calcolo di alpha_dist
             vsubpd ymm1, [alpha_phi]
             vmulpd ymm1, ymm1
             vsubpd ymm2, [alpha_psi]
@@ -31,6 +32,7 @@ section .text
             vaddpd ymm1, ymm2
             vsqrtpd ymm1, ymm1
 
+            ;calcolo di beta_dist
             vsubpd ymm3, [beta_phi]
             vmulpd ymm3, ymm3
             vsubpd ymm4, [beta_psi]
@@ -38,9 +40,11 @@ section .text
             vaddpd ymm3, ymm4
             vsqrtpd ymm3, ymm3
 
+            ;trovo il min tra le due distanze e moltiplico per 0.5
             vminpd ymm1, ymm3
             vmulpd ymm1, [half]
 
+            ;accumulo somme parziali in ymm0
             vaddpd ymm0, ymm1
 
             dec rdx

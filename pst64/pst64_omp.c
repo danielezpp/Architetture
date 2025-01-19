@@ -287,18 +287,6 @@ extern void prova(params* input);
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //								FUNZIONI FATTE DA NOI!!
 
-//Calcola il prodotto scalare di un vettore con sé stesso (axis*axis)
-/*type prod_scal(type* a, int length){
-    int i;
-    type somma = 0;
-
-    for (i=0; i<length;i++){
-        somma += a[i]*a[i];
-    }
-
-    return somma;
-}*/
-
 //NEW METHOD
 type prod_scal(VECTOR v, VECTOR w, int n) {
     type prod = 0.0;
@@ -322,45 +310,11 @@ type opt_factorial(int n){
 	return precomputed_f[n];
 }
 
-// Funzione per calcolare sin(x) usando la serie di Taylor
-/*type taylor_sin2(type x) {
-    int terms = 4;
-    type result = 0.0;
-    for (int i = 0; i < terms; i++) {
-        // Calcola il termine corrente
-        type term = pow(x, 2 * i + 1) / factorial(2 * i + 1);
-        // Aggiungi o sottrai in base alla posizione
-        if (i % 2 == 0) {
-            result += term; // Termini dispari positivi
-        } else {
-            result -= term; // Termini dispari negativi
-        }
-    }
-    return result;
-}*/
-
 type taylor_cos(type x) {
     return 1 - (pow(x, 2) / opt_factorial(2)) 
              + (pow(x, 4) / opt_factorial(4)) 
              - (pow(x, 6) / opt_factorial(6));
 }
-
-// Funzione per calcolare cos(x) usando la serie di Taylor
-/*type taylor_cos2(type x) {
-    int terms = 4;
-    type result = 0.0;
-    for (int i = 0; i < terms; i++) {
-        // Calcola il termine corrente
-        type term = pow(x, 2 * i) / factorial(2 * i);
-        // Aggiungi o sottrai in base alla posizione
-        if (i % 2 == 0) {
-            result += term; // Termini pari positivi
-        } else {
-            result -= term; // Termini pari negativi
-        }
-    }
-    return result;
-}*/
 
 type taylor_sin(type x){
 	return x - (pow(x, 3) / opt_factorial(3)) 

@@ -14,7 +14,7 @@ rama_energy:
     mov ebp, esp
     and esp, 0xFFFFFFF0
     push esi
-    push ebx                  ; Riserva spazio per variabili locali (energia e altre)
+    push ebx      
 
     xorps xmm0, xmm0             ; energy = 0.o
     mov ecx, [ebp+8]        ; ecx punta a phi
