@@ -559,18 +559,34 @@ type get_distance(type* v1, type* v2){
     return sqrt(pow(dx,2) + pow(dy,2) + pow(dz,2));
 }
 
+//OTTIMIZZAZIONE ASSEMBLY DI get_distance
+extern type get_distance64(double* v, double* w);
+
 type hydrophobic_energy(char* sequence, type* ca_coords, int n) {
     
     type hydro_energy = 0.0;
     //MATRIX ca_coords = get_ca_coords(coords, n);
     // Itera su tutte le coppie di residui
+    
 	#pragma omp parallel for collapse (2) reduction(+:hydro_energy)
     for (int i = 0; i < n; i++) {
         for (int j = i + 1; j < n; j++) {
             // Creo i due vettori contenenti le coordinate dei rispettivi atomi
 
-			type v [3] = {ca_coords[i*3], ca_coords[i*3+1], ca_coords[i*3+2]};
-			type w [3] = {ca_coords[j*3], ca_coords[j*3+1], ca_coords[j*3+2]};
+			//type v [3] = {ca_coords[i*3], ca_coords[i*3+1], ca_coords[i*3+2]};
+			//type w [3] = {ca_coords[j*3], ca_coords[j*3+1], ca_coords[j*3+2]};
+            type* v = alloc_matrix(1,4);
+            type* w = alloc_matrix(1,4);
+
+            v[0] = ca_coords[i*3];
+            v[1] = ca_coords[i*3+1];
+            v[2] = ca_coords[i*3+2];
+			v[3] = 0.0;
+
+            w[0] = ca_coords[j*3];
+            w[1] = ca_coords[j*3+1];
+            w[2] = ca_coords[j*3+2];
+			w[3] = 0.0;
             
 			type dist = 0.0;
 			dist = get_distance(v,w);

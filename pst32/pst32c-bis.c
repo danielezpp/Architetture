@@ -300,45 +300,11 @@ type opt_factorial(int n){
 	return precomputed_f[n];
 }
 
-// Funzione per calcolare sin(x) usando la serie di Taylor
-/*type taylor_sin2(type x) {
-    int terms = 4;
-    type result = 0.0;
-    for (int i = 0; i < terms; i++) {
-        // Calcola il termine corrente
-        type term = pow(x, 2 * i + 1) / factorial(2 * i + 1);
-        // Aggiungi o sottrai in base alla posizione
-        if (i % 2 == 0) {
-            result += term; // Termini dispari positivi
-        } else {
-            result -= term; // Termini dispari negativi
-        }
-    }
-    return result;
-}*/
-
 type taylor_cos(type x) {
     return 1 - (pow(x, 2) / opt_factorial(2)) 
              + (pow(x, 4) / opt_factorial(4)) 
              - (pow(x, 6) / opt_factorial(6));
 }
-
-// Funzione per calcolare cos(x) usando la serie di Taylor
-/* type taylor_cos2(type x) {
-    int terms = 4;
-    type result = 0.0;
-    for (int i = 0; i < terms; i++) {
-        // Calcola il termine corrente
-        type term = pow(x, 2 * i) / factorial(2 * i);
-        // Aggiungi o sottrai in base alla posizione
-        if (i % 2 == 0) {
-            result += term; // Termini pari positivi
-        } else {
-            result -= term; // Termini pari negativi
-        }
-    }
-    return result;
-}*/
 
 type taylor_sin(type x){
 	return x - (pow(x, 3) / opt_factorial(3)) 
@@ -370,17 +336,6 @@ type* rotation (type *axis, type theta){
 	 // Copia locale per preservare `axis`
     type* normalized_axis = alloc_matrix(1,4);
     prod_axis(axis, normalized_axis);
-	/*type scalar_prod = prod_scal(axis, axis, 3);
-    //type scalar_prod = (axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]); 
-    if (scalar_prod == 0.0) {
-        printf("Errore: il vettore asse ha magnitudine zero.\n");
-        free(rotated_m);
-        return NULL;
-    }
-
-    normalized_axis [0] = axis [0] / scalar_prod;
-	normalized_axis [1] = axis [1] / scalar_prod;
-	normalized_axis [2] = axis [2] / scalar_prod;*/
 
     // Calcola i coefficienti quaternion
     type a = taylor_cos(theta / 2.0);
@@ -924,10 +879,14 @@ int main(int argc, char** argv) {
 	t = clock() - t;
 	time = ((type)t)/CLOCKS_PER_SEC;
 
-	if(!input->silent)
+	if(!input->silent){
 		printf("PST time = %.3f secs\n", time);
+		printf("Energy = %f\n", input->e);
+	}
 	else
-		printf("%.3f\n", time);
+		{printf("%.3f\n", time);
+		printf("%f\n", input->e);
+	}
 
 	//
 	// Salva il risultato
